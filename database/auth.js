@@ -13,10 +13,21 @@ const pool = mysql
   })
   .promise();
 
+// >get user
+export async function getUser(session) {
+  const [row] = await pool.query(
+    `SELECT * 
+     FROM user 
+     WHERE session = ?`,
+    [session]
+  );
+  return row[0];
+}
+
 // >login
 export async function login(email, password) {
   const [row] = await pool.query(
-    `SELECT password 
+    `SELECT password, role
      FROM user 
      WHERE email = ?`,
     [email]
@@ -33,19 +44,8 @@ export async function login(email, password) {
        WHERE email = ?`,
       [session, email]
     );
-    return session;
+    return { session: session, role: row[0].role };
   } else return false;
-}
-
-// >get user
-export async function getUser(session) {
-  const [row] = await pool.query(
-    `SELECT * 
-     FROM user 
-     WHERE session = ?`,
-    [session]
-  );
-  return row[0];
 }
 
 // >logout
@@ -58,6 +58,27 @@ export async function logout(session) {
   );
 }
 
+// >confirm email
+export async function confirmEmail(email) {
+  const [row] = await pool.query(
+    `SELECT *
+     FROM user 
+     WHERE email = ?`,
+    [email]
+  );
+  if (row.length == 0) return false;
+  else {
+    const session = uuid4();
+    const [result] = await pool.query(
+      `UPDATE user
+       SET session = ?
+       WHERE email = ?`,
+      [session, email]
+    );
+    return session;
+  }
+}
+
 // >set OTP
 export async function setOTP(otp, session) {
   const [result] = await pool.query(
@@ -68,57 +89,106 @@ export async function setOTP(otp, session) {
   );
 }
 
-// >customer register
-export async function customerRegister(name, email, phone, password) {
+// >confirm OTP
+export async function confirmOTP(otp, session) {
+  const [row] = await pool.query(
+    `SELECT *
+     FROM user
+     WHERE otp = ? AND session = ?`,
+    [otp, session]
+  );
+  if (row.length == 1) {
+    const [result] = await pool.query(
+      `UPDATE user
+       SET otp = ?, is_email_verified = ?
+       WHERE session = ?`,
+      [null, true, session]
+    );
+    return true;
+  } else false;
+}
+
+// >reset password
+export async function resetPassword(password, session) {
   const hashPassword = await bcrypt.hash(password, 10);
-  const [user] = await pool.query(
-    `INSERT INTO user (
-	      name,
-        email,
-        phone,
-        password,
-        role,
-        is_email_verified,
-        is_approved
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, email, phone, hashPassword, "customer", false, true]
-  );
-  const [customer] = await pool.query(
-    `INSERT INTO customer (
-	      user_id,
-        is_loan_available,
-        loan_rank
-     ) VALUES (?, ?, ?)`,
-    [user.insertId, false, 0]
-  );
+  try {
+    const [user] = await pool.query(
+      `UPDATE user
+       SET password = ?
+       WHERE session = ?`,
+      [hashPassword, session]
+    );
+  } catch (e) {
+    return false;
+  }
   return true;
 }
 
-// export async function getAllUser() {
-//   const [rows] = await pool.query("SELECT * FROM user");
-//   return rows;
-// }
+// >customer register
+export async function customerRegister(name, email, phone, password) {
+  const hashPassword = await bcrypt.hash(password, 10);
+  const session = uuid4();
+  try {
+    const [user] = await pool.query(
+      `INSERT INTO user (
+          name,
+          email,
+          phone,
+          password,
+          role,
+          session,
+          is_email_verified,
+          is_approved
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, email, phone, hashPassword, "customer", session, false, true]
+    );
+    const [customer] = await pool.query(
+      `INSERT INTO customer (
+          user_id,
+          is_loan_available,
+          loan_rank
+       ) VALUES (?, ?, ?)`,
+      [user.insertId, false, 0]
+    );
+    return session;
+  } catch (e) {
+    return false;
+  }
+}
 
-// export async function getUser(id) {
-//   const [rows] = await pool.query(
-//     `
-//   SELECT *
-//   FROM user
-//   WHERE id = ?
-//   `,
-//     [id]
-//   );
-//   return rows[0];
-// }
-
-// export async function createUser(name, email, phone, password) {
-//   const [result] = await pool.query(
-//     `
-//   INSERT INTO user (name, email, phone, password)
-//   VALUES (?, ?, ?, ?)
-//   `,
-//     [name, email, phone, password]
-//   );
-//   const id = result.insertId;
-//   return getUser(id);
-// }
+// >vendor register
+export async function vendorRegister(
+  vendorName,
+  ownerName,
+  email,
+  phone,
+  password
+) {
+  const hashPassword = await bcrypt.hash(password, 10);
+  const session = uuid4();
+  try {
+    const [user] = await pool.query(
+      `INSERT INTO user (
+          name,
+          email,
+          phone,
+          password,
+          role,
+          session,
+          is_email_verified,
+          is_approved
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ownerName, email, phone, hashPassword, "vendor", session, false, false]
+    );
+    const [vendor] = await pool.query(
+      `INSERT INTO vendor (
+          user_id,
+          name
+       ) VALUES (?, ?)`,
+      [user.insertId, vendorName]
+    );
+    return session;
+  } catch (e) {
+    return false;
+  }
+}

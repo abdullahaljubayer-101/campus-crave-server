@@ -60,3 +60,33 @@ CREATE TABLE `customer` (
     FOREIGN KEY (`user_id`)
     REFERENCES `user`(`id`)
 );
+
+-- >vendor
+CREATE TABLE `vendor` (
+	`id` int AUTO_INCREMENT,
+    `user_id` int UNIQUE NOT NULL,
+    `name` varchar(255) NOT NULL,
+    `description` text,
+    `img` varchar(255),
+    
+    PRIMARY KEY (`id`),
+	CONSTRAINT user_to_vendor
+    FOREIGN KEY (`user_id`)
+    REFERENCES `user`(`id`)
+);
+
+-- >product
+CREATE TABLE `product` (
+	`id` int AUTO_INCREMENT,
+    `vendor_id` int UNIQUE NOT NULL,
+    `name` varchar(255) NOT NULL,
+    `description` text NOT NULL,
+    `price` float NOT NULL,
+    `img_path` varchar(255) NOT NULL,
+    `is_available` boolean NOT NULL,
+    
+    PRIMARY KEY (`id`),
+    CONSTRAINT vendor_to_product
+    FOREIGN KEY (`vendor_id`)
+    REFERENCES `vendor`(`id`)
+);

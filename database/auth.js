@@ -24,6 +24,21 @@ export async function getUser(session) {
   return row[0];
 }
 
+// >get vendor
+export async function getVendor(session) {
+  const [row] = await pool.query(
+    `SELECT *
+     FROM vendor
+     WHERE user_id = (
+	      SELECT id
+	      FROM user
+	      WHERE session = ?
+     );`,
+    [session]
+  );
+  return row[0];
+}
+
 // >login
 export async function login(email, password) {
   const [row] = await pool.query(
@@ -124,6 +139,65 @@ export async function resetPassword(password, session) {
   return true;
 }
 
+// >change password
+export async function changePassword(oldPassword, newPassword, session) {
+  const [row] = await pool.query(
+    `SELECT password
+     FROM user 
+     WHERE session = ?`,
+    [session]
+  );
+  const oldHashPassword = row[0].password;
+  const isPasswordMatch = await bcrypt.compare(oldPassword, oldHashPassword);
+
+  if (isPasswordMatch) {
+    const hashPassword = await bcrypt.hash(newPassword, 10);
+    const [user] = await pool.query(
+      `UPDATE user
+       SET password = ?
+       WHERE session = ?`,
+      [hashPassword, session]
+    );
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// >update information
+export async function updateInformation(name, email, phone, session) {
+  try {
+    const [user] = await pool.query(
+      `UPDATE user
+       SET name = ?, email = ?, phone = ?
+       WHERE session = ?`,
+      [name, email, phone, session]
+    );
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// >update vendor information
+export async function updateVendorInformation(name, description, session) {
+  try {
+    const [vendor] = await pool.query(
+      `UPDATE vendor
+       SET name = ?, description = ?
+       WHERE user_id = (
+	        SELECT id
+	        FROM user
+	        WHERE session = ?
+       );`,
+      [name, description, session]
+    );
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // >customer register
 export async function customerRegister(name, email, phone, password) {
   const hashPassword = await bcrypt.hash(password, 10);
@@ -188,6 +262,40 @@ export async function vendorRegister(
       [user.insertId, vendorName]
     );
     return session;
+  } catch (e) {
+    return false;
+  }
+}
+
+// upload avatar
+export async function uploadAvatar(session, img) {
+  try {
+    const [user] = await pool.query(
+      `UPDATE user
+       SET img = ?
+       WHERE session = ?`,
+      [img, session]
+    );
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// upload vendor avatar
+export async function uploadVendorAvatar(session, img) {
+  try {
+    const [user] = await pool.query(
+      `UPDATE vendor
+       SET img = ?
+       WHERE user_id = (
+	        SELECT id
+	        FROM user
+	        WHERE session = ?
+       );`,
+      [img, session]
+    );
+    return true;
   } catch (e) {
     return false;
   }

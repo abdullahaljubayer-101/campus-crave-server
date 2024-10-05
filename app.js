@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
   login,
   logout,
@@ -12,11 +15,36 @@ import {
   vendorRegister,
   confirmEmail,
   resetPassword,
+  uploadAvatar,
+  updateInformation,
+  changePassword,
+  getVendor,
+  uploadVendorAvatar,
+  updateVendorInformation,
 } from "./database/auth.js";
+import {
+  getAllVendor,
+  getVendor as getAVendor,
+  approvedVendor,
+} from "./database/vendor.js";
 import { sendEmail } from "./helper/email.js";
 import { getOTP } from "./helper/helper.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let avatarStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./uploads/avatar");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "." + file.mimetype.split("/")[1]);
+  },
+});
+const avatar = multer({ storage: avatarStorage });
+
 dotenv.config();
+
 const app = express();
 app.use(
   cors({
@@ -26,6 +54,29 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+
+// get all vendor
+app.get("/api/vendor", async (req, res) => {
+  const vendor = await getAllVendor();
+  if (vendor) res.status(200).send(JSON.stringify(vendor));
+  else res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
+});
+
+// get vendor
+app.get("/api/vendor/:id", async (req, res) => {
+  const id = req.params.id;
+  const vendor = await getAVendor(id);
+  if (vendor) res.status(200).send(JSON.stringify(vendor));
+  else res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
+});
+
+// approved vendor
+app.get("/api/approved/:id", async (req, res) => {
+  const id = req.params.id;
+  const result = await approvedVendor(id);
+  if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
 
 // >login
 app.post("/api/auth/login", async (req, res) => {
@@ -47,7 +98,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// get user
+// >get user
 app.get("/api/auth/get-user", async (req, res) => {
   const session = req.cookies.session;
   if (session) {
@@ -62,6 +113,21 @@ app.get("/api/auth/get-user", async (req, res) => {
     }
   } else {
     res.status(400).send(JSON.stringify({ msg: "NO USER" }));
+  }
+});
+
+// >get vendor
+app.get("/api/auth/get-vendor", async (req, res) => {
+  const session = req.cookies.session;
+  if (session) {
+    const vendor = await getVendor(session);
+    if (vendor) {
+      res.status(200).send(JSON.stringify(vendor));
+    } else {
+      res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
+    }
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
   }
 });
 
@@ -153,6 +219,42 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
+// >change password
+app.post("/api/auth/change-password", async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const session = req.cookies.session;
+  const result = await changePassword(oldPassword, newPassword, session);
+  if (result) {
+    res.status(200).send(JSON.stringify({ msg: "OK" }));
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "Old password is wrong!" }));
+  }
+});
+
+// >update information
+app.post("/api/auth/update-information", async (req, res) => {
+  const { name, email, phone } = req.body;
+  const session = req.cookies.session;
+  const result = await updateInformation(name, email, phone, session);
+  if (result) {
+    res.status(200).send(JSON.stringify({ msg: "OK" }));
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
+});
+
+// >update vendor information
+app.post("/api/auth/update-vendor-information", async (req, res) => {
+  const { name, description } = req.body;
+  const session = req.cookies.session;
+  const result = await updateVendorInformation(name, description, session);
+  if (result) {
+    res.status(200).send(JSON.stringify({ msg: "OK" }));
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
+});
+
 // >customer register
 app.post("/api/auth/register/customer", async (req, res) => {
   const { name, email, phone, password } = req.body;
@@ -183,7 +285,67 @@ app.post("/api/auth/register/vendor", async (req, res) => {
       httpOnly: true,
     });
     res.status(200).send(JSON.stringify({ msg: "OK" }));
-  } else res.status(400).send(JSON.stringify({ msg: "NOT OK [[[[[[" }));
+  } else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >upload avatar
+app.post("/api/upload-avatar", avatar.single("avatar"), async (req, res) => {
+  const session = req.cookies.session;
+  const img = req.file.path;
+  const result = await uploadAvatar(session, img);
+  if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >download avatar
+app.post("/api/download-avatar", function (req, res) {
+  const { fileName } = req.body;
+  if (fileName) {
+    const options = {
+      root: path.join(__dirname),
+    };
+    res.sendFile(fileName, options, function (err) {
+      if (err) {
+        console.error("Error sending file:", err);
+      } else {
+        console.log("Sent:", fileName);
+      }
+    });
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
+});
+
+// upload vendor avatar
+app.post(
+  "/api/upload-vendor-avatar",
+  avatar.single("avatar"),
+  async (req, res) => {
+    const session = req.cookies.session;
+    const img = req.file.path;
+    const result = await uploadVendorAvatar(session, img);
+    if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+    else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
+);
+
+// download vendor avatar
+app.post("/api/download-vendor-avatar", function (req, res) {
+  const { fileName } = req.body;
+  if (fileName) {
+    const options = {
+      root: path.join(__dirname),
+    };
+    res.sendFile(fileName, options, function (err) {
+      if (err) {
+        console.error("Error sending file:", err);
+      } else {
+        console.log("Sent:", fileName);
+      }
+    });
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
 });
 
 app.listen(process.env.SERVER_PORT, () => {

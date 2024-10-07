@@ -26,9 +26,38 @@ import {
   getAllVendor,
   getVendor as getAVendor,
   approvedVendor,
+  getSearchVendor,
 } from "./database/vendor.js";
+import {
+  createProduct,
+  getAllProductVendor,
+  getProductVendor,
+  getCategory,
+  updateAvailable,
+  deleteProduct,
+  getAllProduct,
+  getSearchProduct,
+  getProduct,
+  getCategoryProduct,
+  getVendorProduct,
+  getPriceProduct,
+} from "./database/product.js";
+import {
+  getAllCustomer,
+  getSearchCustomer,
+  getCustomer,
+  addToCart,
+  getToCart,
+  confirmOrder,
+  getOrder,
+  countOrder,
+  countCustomer,
+  countVendor,
+  getOrderAAA,
+} from "./database/customer.js";
 import { sendEmail } from "./helper/email.js";
 import { getOTP } from "./helper/helper.js";
+import { compareSync } from "bcrypt";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +72,16 @@ let avatarStorage = multer.diskStorage({
 });
 const avatar = multer({ storage: avatarStorage });
 
+let productStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./uploads/product");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "." + file.mimetype.split("/")[1]);
+  },
+});
+const product = multer({ storage: productStorage });
+
 dotenv.config();
 
 const app = express();
@@ -55,6 +94,220 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+app.get("/api/count/order", async (req, res) => {
+  const result = await countOrder();
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+app.get("/api/count/customer", async (req, res) => {
+  const result = await countCustomer();
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+app.get("/api/count/vendor", async (req, res) => {
+  const result = await countVendor();
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// ---------------------- >customer ---------------------- //
+// >get all customer
+app.get("/api/customer", async (req, res) => {
+  const customer = await getAllCustomer();
+  if (customer) res.status(200).send(JSON.stringify(customer));
+  else res.status(400).send(JSON.stringify({ msg: "NO CUSTOMER" }));
+});
+
+// >get a customer
+app.get("/api/customer/:id", async (req, res) => {
+  const id = req.params.id;
+  const customer = await getCustomer(id);
+  if (customer) res.status(200).send(JSON.stringify(customer));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get search customer
+app.get("/api/customer/search/:key", async (req, res) => {
+  const key = req.params.key;
+  const customer = await getSearchCustomer(key);
+  if (customer) res.status(200).send(JSON.stringify(customer));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >add to cart
+app.post("/api/customer/cart", async (req, res) => {
+  const { productID, quantity } = req.body;
+  const session = req.cookies.session;
+  const result = await addToCart(session, productID, quantity);
+  if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >get to cart
+app.get("/api/customers/cart", async (req, res) => {
+  const session = req.cookies.session;
+  const result = await getToCart(session);
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >confirm order
+app.get("/api/customers/confirm-order", async (req, res) => {
+  const session = req.cookies.session;
+  const result = await confirmOrder(session);
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >get order
+app.get("/api/customers/order", async (req, res) => {
+  const result = await getOrder();
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >get order vendor
+app.get("/api/customers/order/aaa", async (req, res) => {
+  const result = await getOrderAAA();
+  if (result) res.status(200).send(JSON.stringify(result));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// ---------------------- >product ---------------------- //
+// >product create
+app.post("/api/product/create", async (req, res) => {
+  const { name, description, price, img, categorys } = req.body;
+  const session = req.cookies.session;
+  const result = await createProduct(
+    session,
+    name,
+    description,
+    price,
+    img,
+    categorys
+  );
+  if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >get all product
+app.get("/api/product", async (req, res) => {
+  const product = await getAllProduct();
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get a product
+app.get("/api/product/:id", async (req, res) => {
+  const id = req.params.id;
+  const product = await getProduct(id);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get search product
+app.get("/api/product/search/:key", async (req, res) => {
+  const key = req.params.key;
+  const product = await getSearchProduct(key);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get categorys product
+app.get("/api/product/categorys/:category", async (req, res) => {
+  const category = req.params.category;
+  const product = await getCategoryProduct(category);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get categorys product
+app.get("/api/product/vendors/:vendor", async (req, res) => {
+  const vendor = req.params.vendor;
+  const product = await getVendorProduct(vendor);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// >get categorys product
+app.get("/api/product/price/:min&:max", async (req, res) => {
+  const min = req.params.min;
+  const max = req.params.max;
+  const product = await getPriceProduct(min, max);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// get all product vendor
+app.get("/api/products/vendor/:id", async (req, res) => {
+  const id = req.params.id;
+  const product = await getAllProductVendor(id);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// get a product vendor
+app.get("/api/product/vendor/:id", async (req, res) => {
+  const id = req.params.id;
+  const product = await getProductVendor(id);
+  if (product) res.status(200).send(JSON.stringify(product));
+  else res.status(400).send(JSON.stringify({ msg: "NO PRODUCT" }));
+});
+
+// get category
+app.get("/api/product/category/:id", async (req, res) => {
+  const id = req.params.id;
+  const category = await getCategory(id);
+  if (category) res.status(200).send(JSON.stringify(category));
+  else res.status(400).send(JSON.stringify({ msg: "NO CATEGORY" }));
+});
+
+// update available
+app.get("/api/product/available/:id", async (req, res) => {
+  const id = req.params.id;
+  const available = await updateAvailable(id);
+  if (available) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// delete product
+app.get("/api/product/delete/:id", async (req, res) => {
+  const id = req.params.id;
+  const result = await deleteProduct(id);
+  if (result) res.status(200).send(JSON.stringify({ msg: "OK" }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >product upload
+app.post("/api/upload-product", product.single("avatar"), async (req, res) => {
+  const img = req.file.path;
+  if (img) res.status(200).send(JSON.stringify({ img: img }));
+  else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+});
+
+// >product download
+app.post("/api/download-product", function (req, res) {
+  const { fileName } = req.body;
+
+  if (fileName) {
+    const options = {
+      root: path.join(__dirname),
+    };
+    res.sendFile(fileName, options, function (err) {
+      if (err) {
+        console.error("Error sending file:", err);
+      } else {
+        console.log("Sent:", fileName);
+      }
+    });
+  } else {
+    res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
+  }
+});
+
+// ---------------------- >vendor ---------------------- //
 // get all vendor
 app.get("/api/vendor", async (req, res) => {
   const vendor = await getAllVendor();
@@ -70,6 +323,14 @@ app.get("/api/vendor/:id", async (req, res) => {
   else res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
 });
 
+// get search vendor
+app.get("/api/vendor/search/:key", async (req, res) => {
+  const key = req.params.key;
+  const vendor = await getSearchVendor(key);
+  if (vendor) res.status(200).send(JSON.stringify(vendor));
+  else res.status(400).send(JSON.stringify({ msg: "NO VENDOR" }));
+});
+
 // approved vendor
 app.get("/api/approved/:id", async (req, res) => {
   const id = req.params.id;
@@ -78,6 +339,7 @@ app.get("/api/approved/:id", async (req, res) => {
   else res.status(400).send(JSON.stringify({ msg: "NOT OK" }));
 });
 
+// ---------------------- >auth ---------------------- //
 // >login
 app.post("/api/auth/login", async (req, res) => {
   const { email, password, remember_me } = req.body;

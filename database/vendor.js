@@ -19,7 +19,8 @@ export async function getAllVendor() {
     `SELECT u.id AS user_id, u.name AS username, email, phone, u.img AS user_img, is_email_verified, is_approved, v.id AS vendor_id, v.name AS vendor_name, v.description, v.img AS vendor_img
      FROM user as u
      INNER JOIN vendor as v
-     ON u.id = v.user_id;`
+     ON u.id = v.user_id
+     ORDER BY u.id DESC`
   );
   return row;
 }
@@ -35,6 +36,19 @@ export async function getVendor(id) {
     [id]
   );
   return row[0];
+}
+
+// get search vendor
+export async function getSearchVendor(key) {
+  const [row] = await pool.query(
+    `SELECT u.id AS user_id, u.name AS username, email, phone, u.img AS user_img, is_email_verified, is_approved, v.id AS vendor_id, v.name AS vendor_name, v.description, v.img AS vendor_img
+     FROM user as u
+     INNER JOIN vendor as v
+     ON u.id = v.user_id
+     WHERE u.name LIKE '%${key}%' OR v.name LIKE '%${key}%'
+     ORDER BY u.id DESC;`
+  );
+  return row;
 }
 
 // approved vendor
